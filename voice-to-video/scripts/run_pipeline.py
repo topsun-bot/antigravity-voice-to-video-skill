@@ -44,6 +44,12 @@ def main() -> int:
     parser.add_argument("--force-video", action="store_true", help="Force regenerate video clips")
     parser.add_argument("--fallback-kenburns", action="store_true", help="Animate keyframes locally if no video API key")
     parser.add_argument("--dry-run-audio", action="store_true", help="Force silent timing placeholders instead of TTS")
+    parser.add_argument(
+        "--resolution",
+        choices=["720p", "1080p", "2k", "4k"],
+        default=None,
+        help="Override final export resolution (1080p, 2k, 4k)",
+    )
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
@@ -84,6 +90,8 @@ def main() -> int:
     run_step("4/5 Concurrent AI Video Generation (Google-First)", vid_cmd)
 
     build_cmd = [py, str(scripts_dir / "build_video.py"), "--script", str(script_path)]
+    if args.resolution:
+        build_cmd.extend(["--resolution", args.resolution])
     if args.verbose:
         build_cmd.append("--verbose")
     run_step("5/5 Cinema Packaging, Chapter Badges & Pill Subtitles", build_cmd)

@@ -57,8 +57,13 @@ PY="$( [ -x "<SKILL_DIR>/.venv/bin/python" ] && echo "<SKILL_DIR>/.venv/bin/pyth
     --input "<project_dir>/input/<file>" \
     --out-dir "<project_dir>/work/transcript"
   ```
-- 若用户未指定技术细节，默认采用电影级最佳实践（不打扰老板）：
-  - 画幅与帧率：`16:9`（`1920x1080`，`24fps` 电影帧率）
+- **画质三选一确认规则（必做）**：
+  如果用户在下达视频任务时**没有明确指定输出清晰度**，在正式生成视频前必须先向用户给出清晰度三选一（可使用 `ask_question`）：
+  1. **`1080p`（推荐，默认）**：Google Flow 免费 **1080p 超分**（Ultra 1～10 秒 **+0 积分**），本地合片输出 `1920×1080`；
+  2. **`2k`（`2560×1440`）**：Flow 选 **4K 超分（+50 积分/镜）** 后本地无损下采样至真 2K（或可按用户要求由免费 1080p 本地放大，+0 积分）；
+  3. **`4k`（`3840×2160`）**：Google Flow Ultra 专属 **4K 超分（+50 积分/镜）**，本地原生 4K 合片导出。
+- 其余未指定的技术细节默认采用电影级最佳实践（不打扰老板）：
+  - 画幅与帧率：`16:9`（`24fps` 电影帧率）
   - 时长拆分：约 1 分钟 = **7 个动态镜头（每镜约 7.5~8.5 秒）+ 1 个 4 秒片尾大字卡**
   - 包装样式：左上角半透明章节角标（`PART 01 · ...`）+ 底部抗锯齿圆角黑底字幕条（`cinema_pill`）+ 深色径向渐变片尾卡（`outro_card`）
   - 省额度策略：常规镜头用 **Veo 3.1 Fast（Ultra 半价 10 积分/镜，x1）**，关闭视频模型自带音轨以省成本。
@@ -97,7 +102,10 @@ PY="$( [ -x "<SKILL_DIR>/.venv/bin/python" ] && echo "<SKILL_DIR>/.venv/bin/pyth
    - 若遇到 Google 登录页或人机验证，立即暂停提示用户在浏览器面板完成登录（**严禁绕过登录或验证码**），完成后通过 `send_message` 复用同一已登录标签页继续；
    - **Stage 1（站内锁主体定妆照）**：新建项目，在底部切换到 **「图片 (Image)」** 模式（16:9，x1），按 `subjects` 生成每个核心主体的定妆照（自动进入 Flow 站内「图片」素材库）；
    - **Stage 2（站内素材转真·动态视频）**：切换到 **「视频 → 素材 (Ingredients)」** 模式，配置 **Veo 3.1 - Fast · 16:9 · 720p · 8 秒 · x1（每镜仅 10 积分）**，按分镜从 Flow 站内「图片」库挂载对应主体参考图，批量提交全部动态提示词；
-   - **Stage 3（下载归档）**：等待全部镜头渲染完成，下载 `720p 原始尺寸` MP4，复制归档到 `<project_dir>/work/generated_videos/scene_01.mp4`、`scene_02.mp4`...
+   - **Stage 3（按选定画质下载归档）**：
+     - 选 `1080p`（默认）：等待镜头渲染完成后，点击下载 **`1080p` 超分版 MP4**（Ultra 1～10 秒 **0 积分免费**，画质远优于 720p）；
+     - 选 `2k` 或 `4k`：点击下载 **`4K` 超分版 MP4**（+50 积分/镜，Ultra 专属；若用户明确说明仅本地放大则下免费 `1080p`）；
+     - 全部复制归档到 `<project_dir>/work/generated_videos/scene_01.mp4`、`scene_02.mp4`...
 
 ### 路径 B（已配置 `GEMINI_API_KEY` / Vertex AI / 火山引擎 Seedance）：纯 API 并发调度
 
@@ -111,9 +119,11 @@ PY="$( [ -x "<SKILL_DIR>/.venv/bin/python" ] && echo "<SKILL_DIR>/.venv/bin/pyth
 
 ## Phase 4: 电影级合片与视觉自检
 
-1. 一键完成时长适配、左上角磨砂章节角标叠加、底部圆角半透明字幕条压制、深色片尾大字卡渲染与 BGM 混音：
+1. 一键完成时长适配、左上角磨砂章节角标叠加、底部圆角半透明字幕条压制、深色片尾大字卡渲染与 BGM 混音（按选定清晰度传 `--resolution 1080p|2k|4k`，字幕与角标自动按分辨率等比缩放）：
    ```bash
-   "$PY" "<SKILL_DIR>/scripts/build_video.py" --script "<project_dir>/script.json"
+   "$PY" "<SKILL_DIR>/scripts/build_video.py" \
+     --script "<project_dir>/script.json" \
+     --resolution 1080p
    ```
 2. **交付前必须执行视觉自检**：
    使用 `read_file` 查看 `<project_dir>/output/preview_frames/contact_sheet.jpg` 及代表性分镜帧，确认跨镜头角色一致、动态画面无严重畸变、章节角标与中文字幕清晰无截断。

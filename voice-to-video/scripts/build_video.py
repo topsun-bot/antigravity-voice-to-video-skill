@@ -29,6 +29,21 @@ ASPECT_PRESETS = {
     "1:1": (1080, 1080),
 }
 
+RESOLUTION_PRESETS = {
+    "720p": {"16:9": (1280, 720), "9:16": (720, 1280), "1:1": (720, 720)},
+    "1080p": {"16:9": (1920, 1080), "9:16": (1080, 1920), "1:1": (1080, 1080)},
+    "2k": {"16:9": (2560, 1440), "9:16": (1440, 2560), "1:1": (1440, 1440)},
+    "4k": {"16:9": (3840, 2160), "9:16": (2160, 3840), "1:1": (2160, 2160)},
+}
+
+
+def resolve_dimensions(aspect: str, resolution: str) -> tuple[int, int]:
+    res_key = resolution.strip().lower()
+    if res_key not in RESOLUTION_PRESETS:
+        res_key = "1080p"
+    table = RESOLUTION_PRESETS[res_key]
+    return table.get(aspect, table["16:9"])
+
 
 def run_ffmpeg(cmd: list[str], verbose: bool = False) -> None:
     if verbose:
@@ -162,9 +177,10 @@ def parse_srt_cues(srt_path: Path) -> list[dict]:
 
 
 def srt_to_ass(srt_path: Path, ass_path: Path, width: int, height: int, sub_cfg: dict) -> None:
+    scale = min(width, height) / 1080.0
     font_name = sub_cfg.get("font_name", "Noto Sans CJK SC")
-    font_size = int(sub_cfg.get("font_size", 44 if width >= height else 50))
-    margin_v = int(sub_cfg.get("margin_v", 54 if width >= height else 120))
+    font_size = max(24, int(round(int(sub_cfg.get("font_size", 44 if width >= height else 50)) * scale)))
+    margin_v = max(24, int(round(int(sub_cfg.get("margin_v", 54 if width >= height else 120)) * scale)))
     margin_lr = int(width * 0.06)
 
     header = f"""[Script Info]
@@ -224,7 +240,7 @@ def burn_cinema_pill_subtitles(
         raise ValueError("Empty SRT cues")
 
     # Guard against excessively long filter graphs on 20-min videos
-    if len(cues) > 90:
+    if len(cues) > 160:
         ass_path = work_dir / "subtitles.ass"
         srt_to_ass(srt_path, ass_path, width, height, sub_cfg)
         burn_ass_subtitles(input_mp4, output_mp4, ass_path, bgm_file, bgm_vol, verbose)
@@ -232,8 +248,11 @@ def burn_cinema_pill_subtitles(
 
     pill_dir = work_dir / "subtitle_pills"
     pill_dir.mkdir(parents=True, exist_ok=True)
-    font_size = int(sub_cfg.get("font_size", 40 if width >= height else 46))
-    margin_v = int(sub_cfg.get("margin_v", 46 if width >= height else 120))
+    scale = min(width, height) / 1080.0
+    base_font_size = int(sub_cfg.get("font_size", 40 if width >= height else 46))
+    base_margin_v = int(sub_cfg.get("margin_v", 46 if width >= height else 120))
+    font_size = max(24, int(round(base_font_size * scale)))
+    margin_v = max(24, int(round(base_margin_v * scale)))
 
     cmd = ["ffmpeg", "-y", "-i", str(input_mp4)]
     bgm_idx: int | None = None
@@ -707,11 +726,17 @@ def build_contact_sheet(frame_paths: list[Path], output_path: Path) -> None:
     sheet.save(output_path, "JPEG", quality=88)
 
 
-def build_from_script(script_path: Path, verbose: bool = False) -> None:
+def build_from_script(script_path: Path, resolution_override: str | None = None, verbose: bool = False) -> None:
     project_dir = script_path.parent
     data = json.loads(script_path.read_text(encoding="utf-8"))
     aspect = data.get("aspect_ratio", "16:9")
-    width, height = ASPECT_PRESETS.get(aspect, (1920, 1080))
+    res_label = (
+        resolution_override
+        or data.get("output_resolution")
+        or data.get("production", {}).get("output_resolution")
+        or "1080p"
+    )
+    width, height = resolve_dimensions(aspect, str(res_label))
     fps = int(data.get("fps", 24))
     theme = data.get("theme", "dark")
     scenes = data.get("scenes", [])
@@ -848,6 +873,12 @@ def build_from_script(script_path: Path, verbose: bool = False) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build cinema video from script.json or remove silence.")
     parser.add_argument("--script", help="Path to project script.json")
+    parser.add_argument(
+        "--resolution",
+        choices=["720p", "1080p", "2k", "4k"],
+        default=None,
+        help="Override final export resolution (1080p=1920x1080, 2k=2560x1440, 4k=3840x2160)",
+    )
     parser.add_argument("--remove-silence", help="Path to raw talking-head video for silence removal")
     parser.add_argument("--output", help="Output path when using --remove-silence")
     parser.add_argument("--silence-db", type=float, default=-32.0)
@@ -871,7 +902,7 @@ def main() -> int:
         print("Error: provide --script <path/to/script.json> or --remove-silence <video>", file=sys.stderr)
         return 1
 
-    build_from_script(Path(args.script).resolve(), verbose=args.verbose)
+    build_from_script(Path(args.script).resolve(), resolution_override=args.resolution, verbose=args.verbose)
     return 0
 
 

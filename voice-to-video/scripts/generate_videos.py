@@ -412,6 +412,7 @@ def estimate_cost(data: dict) -> dict:
     prod = data.get("production", {})
     default_tier = str(prod.get("veo_tier", "fast")).lower()
     with_audio = bool(prod.get("generate_audio", False))
+    out_res = str(data.get("output_resolution") or prod.get("output_resolution") or "1080p").lower()
     price_table = VEO_API_PRICE_PER_SEC_AUDIO if with_audio else VEO_API_PRICE_PER_SEC_NO_AUDIO
 
     clips = 0
@@ -430,14 +431,20 @@ def estimate_cost(data: dict) -> dict:
         api_usd += clip_sec * price_table.get(tier, 0.10)
         flow_ultra_credits += FLOW_ULTRA_CREDITS_PER_CLIP.get(tier, 10)
 
+    flow_4k_upscale_extra = clips * 50
     return {
         "ai_video_scenes": clips,
         "estimated_generated_seconds": total_sec,
+        "target_output_resolution": out_res,
         "audio_enabled_in_video_model": with_audio,
         "google_flow_ultra_credits_est": {
             "single_pass": flow_ultra_credits,
-            "with_1_5x_retries": int(round(flow_ultra_credits * 1.5)),
-            "pct_of_10000_monthly_ultra": round(flow_ultra_credits * 1.5 / 10000 * 100, 2),
+            "1080p_free_upscale_single_pass": flow_ultra_credits,
+            "1080p_with_1_5x_retries": int(round(flow_ultra_credits * 1.5)),
+            "4k_or_native_2k_upscale_extra": flow_4k_upscale_extra,
+            "4k_or_native_2k_total_single_pass": flow_ultra_credits + flow_4k_upscale_extra,
+            "pct_of_10000_monthly_ultra_1080p": round(flow_ultra_credits / 10000 * 100, 2),
+            "pct_of_10000_monthly_ultra_4k": round((flow_ultra_credits + flow_4k_upscale_extra) / 10000 * 100, 2),
         },
         "google_veo_api_usd_est": {
             "single_pass": round(api_usd, 2),
