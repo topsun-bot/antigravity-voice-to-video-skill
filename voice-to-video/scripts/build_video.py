@@ -666,7 +666,7 @@ def render_scene_clip(
             cmd.extend(
                 [
                     "-filter_complex",
-                    f"[0:v]{vf}[vout];[0:a]volume=0.25[bg];[1:a]volume=1.0[vo];[bg][vo]amix=inputs=2:duration=shortest[aout]",
+                    f"[0:v]{vf}[vout];[1:a]volume=1.0[vo];[0:a]volume=0.30,apad[bg];[vo][bg]amix=inputs=2:duration=first[aout]",
                     "-map",
                     "[vout]",
                     "-map",
@@ -838,12 +838,13 @@ def build_from_script(script_path: Path, resolution_override: str | None = None,
     # Extract midpoint preview frames + unified storyboard contact sheet
     preview_dir = output_dir / "preview_frames"
     preview_dir.mkdir(parents=True, exist_ok=True)
+    total_final = probe_duration(final_mp4)
     frame_paths: list[Path] = []
     cursor = 0.0
-    for idx, scene in enumerate(scenes, start=1):
+    for idx, (scene, clip_p) in enumerate(zip(scenes, clip_paths), start=1):
         sid = str(scene.get("id", f"{idx:02d}"))
-        dur = float(scene.get("duration", 4.0))
-        mid = cursor + min(dur * 0.5, max(0.3, dur - 0.2))
+        dur = probe_duration(clip_p)
+        mid = min(cursor + min(dur * 0.5, max(0.3, dur - 0.2)), max(0.1, total_final - 0.15))
         frame_out = preview_dir / f"scene_{sid}.png"
         run_ffmpeg(
             [
@@ -859,13 +860,13 @@ def build_from_script(script_path: Path, resolution_override: str | None = None,
             ],
             verbose=verbose,
         )
-        frame_paths.append(frame_out)
+        if frame_out.exists():
+            frame_paths.append(frame_out)
         cursor += dur
 
     contact_sheet = preview_dir / "contact_sheet.jpg"
     build_contact_sheet(frame_paths, contact_sheet)
 
-    total_final = probe_duration(final_mp4)
     print(f"Rendered final video: {final_mp4} ({total_final:.2f}s, {width}x{height}@{fps}fps)")
     print(f"Preview frames & contact sheet: {contact_sheet}")
 
