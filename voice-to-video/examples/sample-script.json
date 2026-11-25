@@ -1,0 +1,80 @@
+{
+  "project_name": "sample-cinema-video",
+  "title": "科技有温度 · 智能管家的一天",
+  "aspect_ratio": "16:9",
+  "fps": 24,
+  "theme": "dark",
+  "production": {
+    "mode": "cinematic_ai",
+    "video_provider": "google_flow",
+    "veo_tier": "fast",
+    "resolution": "720p",
+    "max_concurrency": 4,
+    "generate_audio": false
+  },
+  "style_bible": "Photorealistic 35mm cinema film look, warm golden natural sunlight streaming through sheer white curtains in a cozy modern home with oak wood floors and lush green plants, shallow depth of field, 24fps smooth cinematic motion.",
+  "subjects": [
+    {
+      "id": "robot_helper",
+      "name": "家用管家机器人",
+      "role": "character",
+      "description": "Friendly sleek matte-white ceramic humanoid home companion robot, smooth rounded head, curved dark glass visor displaying two gentle soft-blue glowing eyes, light silver-gray articulated joints, subtle cyan ring accent on chest",
+      "reference_image": "assets/subjects/robot_helper.png"
+    },
+    {
+      "id": "little_boy",
+      "name": "6岁小男孩",
+      "role": "character",
+      "description": "Adorable 6-year-old Chinese boy, neat short black hair, bright cheerful smile, cozy cream cable-knit sweater and light khaki pants",
+      "reference_image": "assets/subjects/little_boy.png"
+    }
+  ],
+  "tts": {
+    "voice": "zh-CN-XiaoxiaoNeural",
+    "rate": "-2%",
+    "pitch": "+0Hz"
+  },
+  "bgm": {
+    "path": "",
+    "volume": 0.14
+  },
+  "subtitles": {
+    "enabled": true,
+    "style": "cinema_pill",
+    "font_name": "Noto Sans CJK SC",
+    "font_size": 40,
+    "margin_v": 46
+  },
+  "scenes": [
+    {
+      "id": "01",
+      "label": "清晨浇花",
+      "chapter": "PART 01 · 清晨照料与阳台浇花",
+      "narration": "清晨的第一缕阳光洒进阳台，家用机器人轻轻提起水壶，为每一盆绿植细心浇水。",
+      "duration": 7.5,
+      "audio_path": "",
+      "visual": {
+        "type": "ai_video",
+        "tier": "fast",
+        "subjects": ["robot_helper"],
+        "video_prompt": "Warm golden-morning 35mm cinema wide shot on a sunlit apartment balcony filled with lush plants. The matte-white home robot gently tilts a brushed-brass watering can, pouring sparkling water onto green fern leaves. Slow dolly-in, single continuous shot, no text.",
+        "camera": "slow dolly-in, 35mm lens",
+        "generated_video": "work/generated_videos/scene_01.mp4",
+        "accent": "#34D399"
+      }
+    },
+    {
+      "id": "02",
+      "label": "片尾收束",
+      "chapter": "",
+      "narration": "",
+      "duration": 4.0,
+      "audio_path": "",
+      "visual": {
+        "type": "outro_card",
+        "title": "科技有温度 · 陪伴每一刻",
+        "subtitle": "把琐碎留给机器人，把时光留给家人"
+      }
+    }
+  ]
+}
