@@ -11,9 +11,9 @@ description: >-
   pure cinema visuals and native AI audio).
 ---
 
-# Voice-to-Video Full-Auto Cinema Skill (v3.2)
+# Voice-to-Video Full-Auto Cinema Skill (v3.3)
 
-本 Skill 让 **Google Antigravity** 具备从「**语音/文字想法、本地参考视频/MV 或 PPT/PDF 演示文稿 → 分镜脚本 → Google Flow 深度制片（`Omni 1.2 Flash` 15 秒长镜头 / Characters / 背景光影覆盖 / Extend / 尾帧接续）→ 纯净 1080p/4K 电影成片（支持 `replace_audio` 原音轨直贴、按需可选配音/字幕）→ 视觉自检**」的全流程视频制作能力。
+本 Skill 让 **Google Antigravity** 具备从「**语音/文字想法、本地参考视频/MV 或 PPT/PDF 演示文稿 → 分镜脚本 → 独立只读审核防抽卡 → Google Flow 深度制片（`Omni 1.2 Flash` 15 秒长镜头 / 资产三件套 / 背景光影覆盖 / 先尾后首关键帧 / Extend）→ 纯净 1080p/4K 电影成片（支持 `replace_audio` 原音轨直贴、按需可选配音/字幕）→ 全片与切点 `±3 帧` 视觉自检**」的全流程视频制作能力。
 
 > **两条铁律**：
 > 1. **严禁用静态图推拉冒充动态成片**（除非用户明确只要静态预览）。
@@ -68,15 +68,22 @@ bash "<SKILL_DIR>/scripts/setup.sh"
 
 ---
 
-## Phase 2: 分镜脚本与导演提示词策划
+## Phase 2: 分镜脚本、导演提示词策划与「独立只读审核关卡」（防抽卡）
 
-在 `<project_dir>/` 下创建 `script.md` 与 `script.json`（参考 [references/script-template.md](./references/script-template.md) 与 [references/veo-prompt-guide.md](./references/veo-prompt-guide.md)，默认纯净配置示例见 [examples/sample-script.json](./examples/sample-script.json)）：
-1. 为每个视频定制契合题材的视觉语言（不要千篇一律套用“科技风暗场+霓虹雾”），在提示词里写清镜头语言、动作节拍与原生声景（ambient sound / music / foley）。
-2. 如开启可选中文 AI 配音（仅当 `tts.enabled == true`），运行：
+在 `<project_dir>/` 下创建 `script.md` 与 `script.json`（参考 [references/script-template.md](./references/script-template.md)、[references/director-playbooks.md](./references/director-playbooks.md) 与 [references/veo-prompt-guide.md](./references/veo-prompt-guide.md)，默认纯净配置示例见 [examples/sample-script.json](./examples/sample-script.json)）：
+1. 为每个视频定制契合题材的视觉语言（黄金分割 38%/62% 构图、不连续 3 镜同景别/同运镜、剧情群演错峰反应），在提示词里写清 `【站位】` 空间左右、6 要素镜头语言、逐秒动作节拍与原生声景，并对照 16 条 AI 穿帮清单自排雷。
+2. **提交视频生成前的独立只读审核（v3.3 新增，强烈推荐用于 >=4 镜的多镜头项目）**：
+   - 遵循「能在文字阶段拦截的错绝不画图，能在图片阶段拦截的错绝不烧视频积分」原则：
+   - 拉起一个**全新的只读 `research` 子智能体**（只传 `script.json` 路径，避免主 Agent 确认偏差），专项核查：
+     - 跨镜角色服装/道具/左右站位是否矛盾；
+     - 是否误入版权/品牌/艺人敏感词或触发 Flow `p=speech_edit`；
+     - 是否存在单镜塞 3 个大动作、负面提示词反触发、连续 3 镜相同运镜或时长总和与音频不匹配；
+   - 审核输出明确 **`通过`**（或修完所有阻断项）后，再进入 Phase 3 花积分生视频。
+3. 如开启可选中文 AI 配音（仅当 `tts.enabled == true`），运行：
    ```bash
    "$PY" "<SKILL_DIR>/scripts/generate_tts.py" --script "<project_dir>/script.json"
    ```
-3. 运行预估脚本查看大致耗时与积分：
+4. 运行预估脚本查看大致耗时与积分：
    ```bash
    "$PY" "<SKILL_DIR>/scripts/generate_videos.py" --script "<project_dir>/script.json" --estimate-only
    ```
@@ -122,5 +129,9 @@ bash "<SKILL_DIR>/scripts/setup.sh"
      --script "<project_dir>/script.json" \
      --resolution 1080p   # 或 4k
    ```
-2. **交付前必做视觉自检**：
-   用 `read_file` 查看 `<project_dir>/output/preview_frames/contact_sheet.jpg` 及重点分镜帧，核验人物一致性、动作流畅度与画面干净度；若单镜有瑕疵，仅在 Flow 重拍或 Inline Edit 该镜后 10 秒重新合片。
+2. **交付前必做双表视觉自检（`contact_sheet.jpg` + 切点 `±3 帧` `cuts_qc.jpg`）**：
+   - `build_video.py` 会自动输出两张质检图：
+     1. `<project_dir>/output/preview_frames/contact_sheet.jpg`（每镜中点总览，核验人物一致性、动作流畅度与画面干净度）；
+     2. `<project_dir>/output/preview_frames/cuts_qc.jpg`（**每个转场切点前后 `-3f / -1f | +1f / +3f` 精检表**，中间红线标出精确切点，一眼抓跳切、闪黑、鬼影与色偏）。
+   - 用 `read_file` 查看两张质检图（多镜头关键项目可交由只读 `research` 子智能体独立复核）。
+   - **能剪就剪、最后才重抽**：若仅某镜首尾 0.3–1s 穿帮，优先在 `script.json` 调 `visual.start` / `duration` 裁掉坏帧重拼（10 秒出片、0 积分）；确需重拍时仅重拍单镜并保留旧版备份，避免盲目整批重抽。

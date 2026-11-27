@@ -1,13 +1,18 @@
-# Antigravity Voice-to-Video & Google Flow Plugin (v3.2)
+# Antigravity Voice-to-Video & Google Flow Plugin (v3.3)
 
 [![Antigravity Plugin](https://img.shields.io/badge/Google%20Antigravity-Plugin-4285F4?logo=google&logoColor=white)](https://antigravity.google)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 
-面向 **Google Antigravity** 的全自动电影级视频制作插件：整合了 **Google Flow 站内深度制片**（默认 `Omni 1.2 Flash` 15 秒长镜头、参考图角色锁定 + 背景光影覆盖法、Characters 角色建档、Extend 延长、Save frame 尾帧接续、Manual Mode、实时积分读取、Checkpoint / Full-Auto 双模式、`/flow-sync` 零积分界面巡检）以及 **参考视频分镜拆解 & 原音轨无损直贴（`prep_v2v_segments.py` + `replace_audio: true`）、PPT/PDF 读稿、可选中文 AI 配音/字幕、1080p/4K 本地合片与 Contact Sheet 质检**。
+面向 **Google Antigravity** 的全自动电影级视频制作插件：整合了 **Google Flow 站内深度制片**（默认 `Omni 1.2 Flash` 15 秒长镜头、资产三件套与先尾后首关键帧、参考图角色锁定 + 背景光影覆盖法、Characters 角色建档、Extend 延长、Save frame 尾帧接续、Manual Mode、实时积分读取、Checkpoint / Full-Auto 双模式、`/flow-sync` 零积分界面巡检）、**独立只读审核关卡防抽卡 + 切点 `±3 帧` 精检（`cuts_qc.jpg`）** 以及 **参考视频分镜拆解 & 原音轨无损直贴（`prep_v2v_segments.py` + `replace_audio: true`）、PPT/PDF 读稿、可选中文 AI 配音/字幕与 1080p/4K 本地合片**。
 
 ---
 
-## 核心设计原则（v3.2 `Omni 1.2 Flash` 15s 长镜头 + 参考视频翻拍工作流）
+## 核心设计原则（v3.3 工程化防抽卡质检 + `Omni 1.2 Flash` 15s 长镜头）
+
+- **工程化防抽卡与双表视觉质检（v3.3 新增）**：
+  - **独立只读审核关卡**：多镜头项目提交生视频前，拉起独立只读 `research` 子智能体审核 `script.json`，提前拦截站位矛盾、版权敏感词与 AI 穿帮风险，绝不把文字/构图错误带到视频生图阶段烧积分；
+  - **切点 `±3 帧` 精检图（`cuts_qc.jpg`）**：`build_video.py` 自动对每个转场切点截取 `-3f / -1f | +1f / +3f` 四帧并拼出红线中缝精检表，一眼抓跳切、闪黑、鬼影与色偏；
+  - **电影导演提示词与反穿帮体系**：升级 `【站位】` 空间锚点、黄金分割 `38% / 62%` 构图、剧情群演错峰反应、逐秒时间轴写法、16 大 AI 穿帮避坑清单、资产三件套 / 先尾后首关键帧法，以及「能剪头尾先剪 → 最后才重抽」省积分原则。
 
 - **参考视频 / 音乐 MV 复刻管线（v3.2 新增）**：
   - **`prep_v2v_segments.py`**：一键对本地参考视频提取完整无损原音轨（`master_audio.m4a`）、切段（默认 `-an` 无声切片）并自动生成全片视觉分镜接触表（`work/storyboard_ref/sheet_*.jpg`），Agent 逐段审图复刻真实光影色彩、人数队形与运镜节奏；

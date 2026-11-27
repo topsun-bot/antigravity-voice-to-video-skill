@@ -1,4 +1,4 @@
-# Antigravity Voice-to-Video & Google Flow Operating Rules (v3.2)
+# Antigravity Voice-to-Video & Google Flow Operating Rules (v3.3)
 
 本规则在启用 `antigravity-voice-to-video-skill` 插件（或进入工作区）时始终生效。
 
@@ -15,8 +15,9 @@
     2. **导出清晰度二选一**：**`1080p`（推荐，默认，1–10s 免费超分 / 11–15s 仅 +5 积分）** / **`4k`（3840×2160，Flow Ultra 专属 4K 超分 +50 积分/镜）**。
   - 若用户已提供明确脚本、本地参考视频或 PPT，则跳过方向题，仅在未指定画质时确认 `1080p` / `4k`。
 - **反 AI 塑料味与参考图背景覆盖约束**：
-  - 未要求赛博风时禁用青紫霓虹雾、虚空黑地板、发光胸环；严禁连续 3 镜使用相同运镜（如全是 `slow dolly-in`）。
+  - 未要求赛博风时禁用青紫霓虹雾、虚空黑地板、发光胸环；严禁连续 3 镜使用相同景别或相同运镜（如全是 `slow dolly-in`）；人物构图优先黄金分割 `38% / 62%` 线，剧情群演必须写“错峰先后反应”（齐舞 MV 除外）。
   - 跨多场景复用同一张锁定角色参考图时，必须在提示词中显式声明 **主体锁定 + 背景/光影覆盖**（如 `"matching ONLY the character design from the reference image; completely ignore the reference image's grey background and flood the scene with [target color/location/camera]"`），防止每镜克隆同一灰底背景。
+  - **提交前独立只读审核 + 切点 `±3 帧` 质检 + 能剪不重抽**：多镜头项目（`>=4` 镜）提交生视频前优先拉起独立只读 `research` 子智能体审核 `script.json`（防确认偏差与版权/穿帮词）；合片后必查 `contact_sheet.jpg` 与 `cuts_qc.jpg`（切点 `±3 帧`）；单镜首尾瑕疵先用 `start`/`duration` 裁剪修复，最后才重抽并保留旧版。
   - 善用非线性短片段复用、**Omni 1.2 Flash 15 秒长镜头**、Flow `Extend` 与平滑转场（`dissolve` / `acrossfade`）打破“每 8 秒硬切一页”的幻灯片感。
 
 ## 2. Google Flow 浏览器操控、模型生命周期与实测避坑红线

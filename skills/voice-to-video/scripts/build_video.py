@@ -791,6 +791,100 @@ def build_contact_sheet(frame_paths: list[Path], output_path: Path) -> None:
     sheet.save(output_path, "JPEG", quality=88)
 
 
+def build_cuts_qc_sheet(
+    final_mp4: Path,
+    scenes: list[dict],
+    clip_paths: list[Path],
+    fps: int,
+    output_path: Path,
+    verbose: bool = False,
+) -> Path | None:
+    """Extract ±3f / ±1f frames around every cut boundary to catch jump cuts, flashes, and color shifts."""
+    if len(clip_paths) < 2:
+        return None
+    from PIL import Image, ImageDraw
+
+    durations = [probe_duration(p) for p in clip_paths]
+    total_final = probe_duration(final_mp4)
+    has_xfade = any(str(s.get("transition", "cut")).lower() in XFADE_MAP for s in scenes[1:])
+
+    cut_entries: list[tuple[str, float]] = []
+    timeline_len = durations[0]
+    for i in range(1, len(clip_paths)):
+        prev_id = str(scenes[i - 1].get("id", f"{i:02d}"))
+        curr_id = str(scenes[i].get("id", f"{i + 1:02d}"))
+        t_name = str(scenes[i].get("transition", "cut")).lower()
+        t_xfade = XFADE_MAP.get(t_name) if has_xfade else None
+        if t_xfade:
+            max_td = min(timeline_len, durations[i]) * 0.4
+            td = min(max_td, max(0.12, float(scenes[i].get("transition_duration", 0.35))))
+            offset = max(0.0, timeline_len - td)
+            cut_t = offset + td * 0.5
+            timeline_len = offset + durations[i]
+        else:
+            cut_t = timeline_len
+            timeline_len += durations[i]
+        if 0.1 < cut_t < total_final - 0.1:
+            cut_entries.append((f"{prev_id}->{curr_id}", cut_t))
+
+    if not cut_entries:
+        return None
+
+    frame_dt = 1.0 / max(1, fps)
+    offsets = [(-3, "-3f"), (-1, "-1f"), (1, "+1f"), (3, "+3f")]
+    tmp_dir = output_path.parent / "_cuts_tmp"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    sample_tmp = tmp_dir / "sample.jpg"
+    run_ffmpeg(
+        ["ffmpeg", "-y", "-ss", "0.100", "-i", str(final_mp4), "-frames:v", "1", str(sample_tmp)],
+        verbose=verbose,
+    )
+    sample = Image.open(sample_tmp)
+    tw, th = (180, 320) if sample.height > sample.width else (320, 180)
+    sample_tmp.unlink(missing_ok=True)
+
+    sheet = Image.new("RGB", (tw * 4, th * len(cut_entries)), (12, 16, 24))
+    draw = ImageDraw.Draw(sheet)
+
+    for r, (pair_label, cut_t) in enumerate(cut_entries):
+        for c, (df, tag) in enumerate(offsets):
+            ts = max(0.02, min(total_final - 0.05, cut_t + df * frame_dt))
+            tmp_f = tmp_dir / f"c{r}_{c}.jpg"
+            run_ffmpeg(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-ss",
+                    f"{ts:.3f}",
+                    "-i",
+                    str(final_mp4),
+                    "-frames:v",
+                    "1",
+                    "-vf",
+                    f"scale={tw}:{th}:force_original_aspect_ratio=decrease,pad={tw}:{th}:(ow-iw)/2:(oh-ih)/2",
+                    str(tmp_f),
+                ],
+                verbose=verbose,
+            )
+            if tmp_f.exists():
+                im = Image.open(tmp_f).convert("RGB")
+                sheet.paste(im, (c * tw, r * th))
+                tmp_f.unlink(missing_ok=True)
+            txt = f"CUT {pair_label} {tag}"
+            draw.rectangle([c * tw + 4, r * th + 4, c * tw + 132, r * th + 22], fill=(0, 0, 0))
+            draw.text((c * tw + 8, r * th + 7), txt, fill=(255, 220, 110) if df < 0 else (120, 255, 170))
+        # Crisp center red seam marking the exact cut boundary between -1f and +1f
+        draw.line([(tw * 2, r * th), (tw * 2, (r + 1) * th)], fill=(255, 70, 70), width=3)
+
+    try:
+        tmp_dir.rmdir()
+    except OSError:
+        pass
+    sheet.save(output_path, "JPEG", quality=88)
+    return output_path
+
+
 XFADE_MAP = {
     "dissolve": "fade",
     "fade": "fade",
@@ -1037,8 +1131,19 @@ def build_from_script(script_path: Path, resolution_override: str | None = None,
     contact_sheet = preview_dir / "contact_sheet.jpg"
     build_contact_sheet(frame_paths, contact_sheet)
 
+    cuts_qc = build_cuts_qc_sheet(
+        final_mp4=final_mp4,
+        scenes=scenes,
+        clip_paths=clip_paths,
+        fps=fps,
+        output_path=preview_dir / "cuts_qc.jpg",
+        verbose=verbose,
+    )
+
     print(f"Rendered final video: {final_mp4} ({total_final:.2f}s, {width}x{height}@{fps}fps)")
     print(f"Preview frames & contact sheet: {contact_sheet}")
+    if cuts_qc:
+        print(f"Cut-point ±3f QC sheet: {cuts_qc}")
 
 
 def main() -> int:
