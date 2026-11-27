@@ -35,12 +35,14 @@ bash "<SKILL_DIR>/scripts/setup.sh"
 
 ---
 
-## Phase 1: 需求定调与清晰度二选一
+## Phase 1: 题材分流、10 秒定调卡与清晰度二选一
 
-- **清晰度二选一确认（未指定时必问，已移除 2K）**：
-  如果用户下达任务时没有指定清晰度，正式生成前必须给出明确二选一：
-  1. **`1080p`（推荐，默认）**：Google Flow 免费 `1080p` 超分（Ultra 1～10 秒 **+0 积分**），导出 `1920×1080`；
-  2. **`4k`（`3840×2160`）**：Google Flow Ultra 专属 `4K` 超分（**+50 积分/镜**），原生 4K 导出。
+先读取 [references/director-playbooks.md](./references/director-playbooks.md) 确定本片所属题材语法（剧情短片 / 写实真机纪录 / 节奏表演混剪 / PPT 商业解说）：
+- **开拍前「10 秒导演定调卡」（宽泛需求必做）+ 清晰度二选一（已移除 2K）**：
+  - 若用户只给了宽泛主题（无具体脚本或 PPT），用一次 `ask_question` 同时确认：
+    1. **3 个反差极大的视觉方向**（按题材定制，绝不套旧模板）；
+    2. **导出清晰度二选一**：**`1080p`（推荐，Flow 免费超分 +0 积分）** / **`4k`（3840×2160，Flow Ultra 专属 4K 超分 +50 积分/镜）**。
+  - 若用户已提供完整脚本或 PPT/PDF，则跳过方向题，仅在未指定画质时询问 `1080p` / `4k`。
 - **纯净模式 vs 解说包装模式判断**：
   - **纯净动态片（默认）**：`tts.enabled = false`、`subtitles.enabled = false`、`chapter = ""`、`keep_audio = true`（保留 AI 原生音乐/现场环境音/对白），不硬塞黑底片尾卡。
   - **解说/汇报片（仅在用户明确要求配音/字幕/PPT 讲解时开启）**：按需开启 `tts.enabled = true`、`subtitles.enabled = true`（可选 `chapter` 章节角标）。
@@ -101,9 +103,9 @@ bash "<SKILL_DIR>/scripts/setup.sh"
 
 ---
 
-## Phase 4: 1080p / 4K 合片与 Contact Sheet 视觉自检
+## Phase 4: 通用非线性时间线合片（1080p / 4K）与视觉自检
 
-1. 按用户选定清晰度合片（默认纯净无字幕、无角标、保留原生视频音轨；若开启了可选配音/字幕/BGM 则自动混音压制）：
+1. `build_video.py` 支持**多片段自由截取与素材复用**（同一段 Flow 素材可通过 `visual.start` + `duration` / `visual.end` 被多个镜头交叉剪辑）、可选播放倍速（`visual.speed`）、每镜独立转场（`transition`: `cut` / `dissolve` / `fadeblack` / `smoothleft` + `transition_duration`）与**无断层音频交叉淡化（`acrossfade` / 防爆音微淡入淡出）**。执行合片：
    ```bash
    "$PY" "<SKILL_DIR>/scripts/build_video.py" \
      --script "<project_dir>/script.json" \

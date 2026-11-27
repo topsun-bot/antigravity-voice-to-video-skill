@@ -436,9 +436,14 @@ def render_scene_clip(
     verbose: bool,
 ) -> Path:
     sid = str(scene.get("id", f"{scene_idx:02d}"))
-    dur = float(scene.get("duration", 4.0))
     visual = scene.get("visual", {})
     vtype = visual.get("type", "card")
+    if "duration" in scene and scene["duration"] is not None:
+        dur = float(scene["duration"])
+    elif "end" in visual and visual["end"] is not None:
+        dur = max(0.3, float(visual["end"]) - float(visual.get("start", 0.0)))
+    else:
+        dur = 4.0
     raw_clip = work_dir / "clips" / f"scene_{sid}_raw.mp4"
     out_clip = work_dir / "clips" / f"scene_{sid}.mp4"
     raw_clip.parent.mkdir(parents=True, exist_ok=True)
@@ -468,9 +473,9 @@ def render_scene_clip(
             verbose=verbose,
         )
 
-    # Resolve ai_video -> generated_video mp4 (or gracefully fall back to first_frame image)
+    # Resolve ai_video -> generated_video mp4 (supports multi-segment reuse via start/end/duration)
     if vtype == "ai_video":
-        gen_rel = str(visual.get("generated_video") or f"work/generated_videos/scene_{sid}.mp4")
+        gen_rel = str(visual.get("generated_video") or visual.get("path") or f"work/generated_videos/scene_{sid}.mp4")
         gen_path = project_dir / gen_rel
         if gen_path.exists():
             vtype = "video"
@@ -479,8 +484,8 @@ def render_scene_clip(
             visual = {
                 **visual,
                 "path": gen_rel,
-                "start": 0.0,
-                "auto_fit": True,
+                "start": float(visual.get("start", 0.0)),
+                "auto_fit": bool(visual.get("auto_fit", True)),
                 "keep_audio": bool(visual.get("keep_audio", default_keep)),
             }
         elif visual.get("first_frame") and (project_dir / visual["first_frame"]).exists():
@@ -650,21 +655,25 @@ def render_scene_clip(
         if not vid_path.exists():
             raise FileNotFoundError(f"Scene {sid} video not found: {vid_path}")
         start = float(visual.get("start", 0.0))
+        speed = float(visual.get("speed", 1.0))
         keep_audio = bool(visual.get("keep_audio", False))
         src_dur = probe_duration(vid_path)
-        avail = max(0.5, src_dur - start)
+        avail = max(0.3, (src_dur - start) / max(0.25, speed))
 
-        # Auto-fit AI clip length to narration duration smoothly
+        # Auto-fit clip length smoothly when needed, or apply explicit playback speed
         stream_loop_args: list[str] = []
         pts_filter = ""
-        if visual.get("auto_fit") and avail < dur - 0.15:
+        if abs(speed - 1.0) > 0.01:
+            pts_filter = f"setpts={1.0 / speed:.4f}*PTS,"
+        elif visual.get("auto_fit") and avail < dur - 0.15:
             ratio = dur / avail
             if ratio <= 1.35:
                 pts_filter = f"setpts={ratio:.4f}*PTS,"
             else:
                 stream_loop_args = ["-stream_loop", "-1"]
 
-        fade_in = "fade=t=in:st=0:d=0.18," if scene_idx > 1 else "fade=t=in:st=0:d=0.3,"
+        # Only fade in from black on Scene 1 (or when explicitly requested); avoid black blinks on hard cuts
+        fade_in = "fade=t=in:st=0:d=0.3," if (scene_idx == 1 or visual.get("fade_in")) else ""
         vf = (
             f"{pts_filter}scale={width}:{height}:force_original_aspect_ratio=increase,"
             f"crop={width}:{height},fps={fps},{fade_in}format=yuv420p"
@@ -687,12 +696,14 @@ def render_scene_clip(
                 text=True,
             ).strip()
         )
+        fade_out_st = max(0.05, dur - 0.04)
+        anti_click = f"afade=t=in:st=0:d=0.03,afade=t=out:st={fade_out_st:.3f}:d=0.04"
         cmd = ["ffmpeg", "-y", *stream_loop_args, "-ss", f"{start:.3f}", "-i", str(vid_path), "-i", str(audio_file), "-t", f"{dur:.3f}"]
         if keep_audio and has_src_audio and has_external_vo:
             cmd.extend(
                 [
                     "-filter_complex",
-                    f"[0:v]{vf}[vout];[1:a]volume=1.0[vo];[0:a]volume=0.30,apad[bg];[vo][bg]amix=inputs=2:duration=first[aout]",
+                    f"[0:v]{vf}[vout];[1:a]volume=1.0[vo];[0:a]volume=0.30,apad[bg];[vo][bg]amix=inputs=2:duration=first,{anti_click}[aout]",
                     "-map",
                     "[vout]",
                     "-map",
@@ -703,7 +714,7 @@ def render_scene_clip(
             cmd.extend(
                 [
                     "-filter_complex",
-                    f"[0:v]{vf}[vout];[0:a]apad[aout]",
+                    f"[0:v]{vf}[vout];[0:a]apad,{anti_click}[aout]",
                     "-map",
                     "[vout]",
                     "-map",
@@ -711,7 +722,16 @@ def render_scene_clip(
                 ]
             )
         else:
-            cmd.extend(["-vf", vf, "-map", "0:v:0", "-map", "1:a:0"])
+            cmd.extend(
+                [
+                    "-filter_complex",
+                    f"[0:v]{vf}[vout];[1:a]{anti_click}[aout]",
+                    "-map",
+                    "[vout]",
+                    "-map",
+                    "[aout]",
+                ]
+            )
         cmd.extend(
             [
                 "-c:v",
@@ -763,6 +783,132 @@ def build_contact_sheet(frame_paths: list[Path], output_path: Path) -> None:
     sheet.save(output_path, "JPEG", quality=88)
 
 
+XFADE_MAP = {
+    "dissolve": "fade",
+    "fade": "fade",
+    "fadeblack": "fadeblack",
+    "smoothleft": "smoothleft",
+    "smoothright": "smoothright",
+    "wipeleft": "wipeleft",
+    "wiperight": "wiperight",
+}
+
+
+def merge_clips_with_transitions(
+    clip_paths: list[Path],
+    scenes: list[dict],
+    merged_mp4: Path,
+    work_dir: Path,
+    fps: int,
+    verbose: bool,
+) -> None:
+    """Merge scene clips with either fast click-free cuts or smooth xfade + acrossfade transitions."""
+    has_xfade = len(clip_paths) > 1 and any(
+        str(sc.get("transition", "cut")).lower() in XFADE_MAP for sc in scenes[1:]
+    )
+    if not has_xfade or len(clip_paths) == 1:
+        concat_file = work_dir / "concat.txt"
+        concat_file.write_text("\n".join(f"file '{p.resolve()}'" for p in clip_paths) + "\n", encoding="utf-8")
+        run_ffmpeg(
+            [
+                "ffmpeg",
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(concat_file),
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "19",
+                "-c:a",
+                "aac",
+                "-ar",
+                "44100",
+                "-ac",
+                "2",
+                "-b:a",
+                "160k",
+                str(merged_mp4),
+            ],
+            verbose=verbose,
+        )
+        return
+
+    # Build NLE xfade + acrossfade graph via filter_complex_script
+    durations = [probe_duration(p) for p in clip_paths]
+    cmd = ["ffmpeg", "-y"]
+    for p in clip_paths:
+        cmd.extend(["-i", str(p)])
+
+    filters: list[str] = []
+    for i in range(len(clip_paths)):
+        filters.append(f"[{i}:v]fps={fps},settb=AVTB,format=yuv420p[vn{i}]")
+        filters.append(f"[{i}:a]aformat=sample_rates=44100:channel_layouts=stereo[an{i}]")
+
+    cur_v = "vn0"
+    cur_a = "an0"
+    timeline_len = durations[0]
+
+    for i in range(1, len(clip_paths)):
+        sc = scenes[i]
+        t_name = str(sc.get("transition", "cut")).lower()
+        t_xfade = XFADE_MAP.get(t_name)
+        max_td = min(timeline_len, durations[i]) * 0.4
+        if t_xfade:
+            td = min(max_td, max(0.12, float(sc.get("transition_duration", 0.35))))
+            offset = max(0.0, timeline_len - td)
+            next_v = f"vx{i}"
+            next_a = f"ax{i}"
+            filters.append(f"[{cur_v}][vn{i}]xfade=transition={t_xfade}:duration={td:.3f}:offset={offset:.3f}[{next_v}]")
+            filters.append(f"[{cur_a}][an{i}]acrossfade=d={td:.3f}:c1=tri:c2=tri[{next_a}]")
+            timeline_len = offset + durations[i]
+        else:
+            # Crisp hard cut inside a mixed transition timeline (tiny 0.04s audio crossfade prevents clicks)
+            td_a = min(0.04, max_td)
+            next_v = f"vx{i}"
+            next_a = f"ax{i}"
+            filters.append(f"[{cur_v}][vn{i}]concat=n=2:v=1:a=0[{next_v}]")
+            filters.append(f"[{cur_a}][an{i}]acrossfade=d={td_a:.3f}:c1=tri:c2=tri[{next_a}]")
+            timeline_len = timeline_len + durations[i]
+        cur_v, cur_a = next_v, next_a
+
+    fc_file = work_dir / "merge_transitions_filter.txt"
+    fc_file.write_text(";\n".join(filters) + "\n", encoding="utf-8")
+    cmd.extend(
+        [
+            "-filter_complex_script",
+            str(fc_file),
+            "-map",
+            f"[{cur_v}]",
+            "-map",
+            f"[{cur_a}]",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "19",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-ar",
+            "44100",
+            "-ac",
+            "2",
+            "-b:a",
+            "160k",
+            str(merged_mp4),
+        ]
+    )
+    run_ffmpeg(cmd, verbose=verbose)
+
+
 def build_from_script(script_path: Path, resolution_override: str | None = None, verbose: bool = False) -> None:
     project_dir = script_path.parent
     data = json.loads(script_path.read_text(encoding="utf-8"))
@@ -801,35 +947,13 @@ def build_from_script(script_path: Path, resolution_override: str | None = None,
         )
         clip_paths.append(clip)
 
-    concat_file = work_dir / "concat.txt"
-    concat_file.write_text("\n".join(f"file '{p.resolve()}'" for p in clip_paths) + "\n", encoding="utf-8")
     merged_mp4 = work_dir / "merged.mp4"
-    run_ffmpeg(
-        [
-            "ffmpeg",
-            "-y",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            str(concat_file),
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            "19",
-            "-c:a",
-            "aac",
-            "-ar",
-            "44100",
-            "-ac",
-            "2",
-            "-b:a",
-            "160k",
-            str(merged_mp4),
-        ],
+    merge_clips_with_transitions(
+        clip_paths=clip_paths,
+        scenes=scenes,
+        merged_mp4=merged_mp4,
+        work_dir=work_dir,
+        fps=fps,
         verbose=verbose,
     )
 
