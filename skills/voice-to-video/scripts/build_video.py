@@ -32,7 +32,6 @@ ASPECT_PRESETS = {
 RESOLUTION_PRESETS = {
     "720p": {"16:9": (1280, 720), "9:16": (720, 1280), "1:1": (720, 720)},
     "1080p": {"16:9": (1920, 1080), "9:16": (1080, 1920), "1:1": (1080, 1080)},
-    "2k": {"16:9": (2560, 1440), "9:16": (1440, 2560), "1:1": (1440, 1440)},
     "4k": {"16:9": (3840, 2160), "9:16": (2160, 3840), "1:1": (2160, 2160)},
 }
 
@@ -446,7 +445,8 @@ def render_scene_clip(
 
     audio_rel = str(scene.get("audio_path", "")).strip()
     audio_file = (project_dir / audio_rel) if audio_rel else None
-    if not audio_file or not audio_file.exists():
+    has_external_vo = bool(audio_file and audio_file.exists())
+    if not has_external_vo:
         audio_file = work_dir / "audio" / f"scene_{sid}_silence.m4a"
         audio_file.parent.mkdir(parents=True, exist_ok=True)
         run_ffmpeg(
@@ -474,7 +474,15 @@ def render_scene_clip(
         gen_path = project_dir / gen_rel
         if gen_path.exists():
             vtype = "video"
-            visual = {**visual, "path": gen_rel, "start": 0.0, "auto_fit": True}
+            # Preserve native AI clip audio by default when no external TTS voiceover is supplied
+            default_keep = not has_external_vo
+            visual = {
+                **visual,
+                "path": gen_rel,
+                "start": 0.0,
+                "auto_fit": True,
+                "keep_audio": bool(visual.get("keep_audio", default_keep)),
+            }
         elif visual.get("first_frame") and (project_dir / visual["first_frame"]).exists():
             vtype = "image"
             visual = {**visual, "path": visual["first_frame"], "zoom": True}
@@ -661,12 +669,41 @@ def render_scene_clip(
             f"{pts_filter}scale={width}:{height}:force_original_aspect_ratio=increase,"
             f"crop={width}:{height},fps={fps},{fade_in}format=yuv420p"
         )
+        # Detect whether source video actually contains an audio stream
+        has_src_audio = bool(
+            subprocess.check_output(
+                [
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "a",
+                    "-show_entries",
+                    "stream=index",
+                    "-of",
+                    "csv=p=0",
+                    str(vid_path),
+                ],
+                text=True,
+            ).strip()
+        )
         cmd = ["ffmpeg", "-y", *stream_loop_args, "-ss", f"{start:.3f}", "-i", str(vid_path), "-i", str(audio_file), "-t", f"{dur:.3f}"]
-        if keep_audio:
+        if keep_audio and has_src_audio and has_external_vo:
             cmd.extend(
                 [
                     "-filter_complex",
                     f"[0:v]{vf}[vout];[1:a]volume=1.0[vo];[0:a]volume=0.30,apad[bg];[vo][bg]amix=inputs=2:duration=first[aout]",
+                    "-map",
+                    "[vout]",
+                    "-map",
+                    "[aout]",
+                ]
+            )
+        elif keep_audio and has_src_audio and not has_external_vo:
+            cmd.extend(
+                [
+                    "-filter_complex",
+                    f"[0:v]{vf}[vout];[0:a]apad[aout]",
                     "-map",
                     "[vout]",
                     "-map",
@@ -805,7 +842,7 @@ def build_from_script(script_path: Path, resolution_override: str | None = None,
 
     sub_cfg = data.get("subtitles", {})
     srt_path = output_dir / "subtitles.srt"
-    burn_subs = bool(sub_cfg.get("enabled", True) and srt_path.exists() and srt_path.stat().st_size > 0)
+    burn_subs = bool(sub_cfg.get("enabled", False) and srt_path.exists() and srt_path.stat().st_size > 0)
     sub_style = str(sub_cfg.get("style", "cinema_pill")).lower()
     final_mp4 = output_dir / "final.mp4"
 
@@ -876,9 +913,9 @@ def main() -> int:
     parser.add_argument("--script", help="Path to project script.json")
     parser.add_argument(
         "--resolution",
-        choices=["720p", "1080p", "2k", "4k"],
+        choices=["720p", "1080p", "4k"],
         default=None,
-        help="Override final export resolution (1080p=1920x1080, 2k=2560x1440, 4k=3840x2160)",
+        help="Override final export resolution (1080p=1920x1080, 4k=3840x2160)",
     )
     parser.add_argument("--remove-silence", help="Path to raw talking-head video for silence removal")
     parser.add_argument("--output", help="Output path when using --remove-silence")

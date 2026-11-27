@@ -1,0 +1,61 @@
+{
+  "project_name": "sample-clean-cinema",
+  "title": "纯净电影级动态视频示例（默认无字幕/无AI配音/无章节角标）",
+  "aspect_ratio": "16:9",
+  "output_resolution": "1080p",
+  "fps": 24,
+  "theme": "dark",
+  "production": {
+    "mode": "cinematic_ai",
+    "video_provider": "google_flow",
+    "veo_tier": "fast",
+    "output_resolution": "1080p",
+    "max_concurrency": 4,
+    "generate_audio": true
+  },
+  "style_bible": "Authentic 35mm documentary-cinema realism, natural architectural daylight, realistic surface textures, natural color grading, 24fps organic motion, no text, no watermarks.",
+  "subjects": [
+    {
+      "id": "lead_robot",
+      "name": "主角人形机器人",
+      "role": "character",
+      "description": "Realistic industrial-grade matte-white and brushed-aluminum bipedal humanoid robot with exposed carbon-fiber actuators and subtle matte black visor",
+      "reference_image": "assets/subjects/lead_robot.png"
+    }
+  ],
+  "tts": {
+    "enabled": false,
+    "voice": "zh-CN-YunxiNeural",
+    "rate": "+4%",
+    "pitch": "+0Hz"
+  },
+  "bgm": {
+    "path": "",
+    "volume": 0.14
+  },
+  "subtitles": {
+    "enabled": false,
+    "style": "cinema_pill",
+    "font_name": "Noto Sans CJK SC",
+    "font_size": 40,
+    "margin_v": 46
+  },
+  "scenes": [
+    {
+      "id": "01",
+      "label": "清晨阳台的真实律动",
+      "chapter": "",
+      "narration": "",
+      "duration": 7.8,
+      "audio_path": "",
+      "visual": {
+        "type": "ai_video",
+        "tier": "fast",
+        "subjects": ["lead_robot"],
+        "keep_audio": true,
+        "video_prompt": "Handheld 35mm natural daylight shot inside a sunlit hardwood dance rehearsal studio with tall wall mirrors. The matte-white bipedal humanoid robot warms up, shifting weight smoothly onto its right foot and executing crisp realistic hip-hop footwork as sneakers scuff lightly on the wooden floor. Sound design: raw live drum groove from a studio speaker, rhythmic footsteps and subtle servo whirs. Single continuous shot, no text.",
+        "generated_video": "work/generated_videos/scene_01.mp4"
+      }
+    }
+  ]
+}

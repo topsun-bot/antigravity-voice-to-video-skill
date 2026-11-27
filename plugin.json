@@ -1,0 +1,13 @@
+{
+  "name": "antigravity-voice-to-video-skill",
+  "description": "Full-auto Google Flow Ultra & Veo/Omni cinematic video production plugin for Google Antigravity — supports Characters, Extend/Save-Frame continuity, live credit checks, PPT/PDF-to-video, optional Chinese TTS/subtitles, and 1080p/4K assembly.",
+  "author": {
+    "name": "TOPSUN-BOT",
+    "url": "https://github.com/topsun-bot"
+  },
+  "homepage": "https://github.com/topsun-bot/antigravity-voice-to-video-skill",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/topsun-bot/antigravity-voice-to-video-skill"
+  }
+}

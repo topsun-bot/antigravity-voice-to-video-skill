@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -43,18 +44,20 @@ def main() -> int:
     parser.add_argument("--scenes", default="", help="Only regenerate specific scene IDs (e.g. '02,04')")
     parser.add_argument("--force-video", action="store_true", help="Force regenerate video clips")
     parser.add_argument("--fallback-kenburns", action="store_true", help="Animate keyframes locally if no video API key")
+    parser.add_argument("--with-tts", action="store_true", help="Force-enable optional Chinese AI voiceover (off by default)")
     parser.add_argument("--dry-run-audio", action="store_true", help="Force silent timing placeholders instead of TTS")
     parser.add_argument(
         "--resolution",
-        choices=["720p", "1080p", "2k", "4k"],
+        choices=["720p", "1080p", "4k"],
         default=None,
-        help="Override final export resolution (1080p, 2k, 4k)",
+        help="Override final export resolution (1080p, 4k)",
     )
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
     scripts_dir = Path(__file__).resolve().parent
     script_path = Path(args.script).resolve()
+    data = json.loads(script_path.read_text(encoding="utf-8"))
     py = sys.executable
 
     run_step("1/5 Pre-flight Cost & Credit Estimate", [py, str(scripts_dir / "generate_videos.py"), "--script", str(script_path), "--estimate-only"])
@@ -64,12 +67,16 @@ def main() -> int:
         [py, str(scripts_dir / "prepare_subjects.py"), "--script", str(script_path), "--mode", args.subject_mode],
     )
 
-    tts_cmd = [py, str(scripts_dir / "generate_tts.py"), "--script", str(script_path)]
-    if args.dry_run_audio or importlib.util.find_spec("edge_tts") is None:
-        if not args.dry_run_audio:
-            print("Note: edge_tts not installed; using --dry-run-audio timing mode for TTS.")
-        tts_cmd.append("--dry-run-audio")
-    run_step("3/5 Voiceover & Synced Subtitles", tts_cmd)
+    tts_enabled = args.with_tts or bool(data.get("tts", {}).get("enabled", False))
+    if tts_enabled:
+        tts_cmd = [py, str(scripts_dir / "generate_tts.py"), "--script", str(script_path)]
+        if args.dry_run_audio or importlib.util.find_spec("edge_tts") is None:
+            if not args.dry_run_audio:
+                print("Note: edge_tts not installed; using --dry-run-audio timing mode for TTS.")
+            tts_cmd.append("--dry-run-audio")
+        run_step("3/5 Optional Voiceover & Subtitles", tts_cmd)
+    else:
+        print("\n=== 3/5 Optional Voiceover & Subtitles (Skipped — preserving native AI video audio by default) ===")
 
     vid_cmd = [
         py,
