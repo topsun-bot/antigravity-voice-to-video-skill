@@ -25,17 +25,21 @@
 
 ---
 
-## 通道 2：Google Flow + Google AI Ultra（\$99.99/月 10,000 积分池，性价比之王）
+## 通道 2：Google Flow + Google AI Ultra（月度 10,000 积分池，性价比之王）
 
-适合：**充分利用老板 \$99.99/月 Google AI Ultra 账号自带的 10,000 Flow 积分**（Ultra 享 Veo Lite 5 积分/镜、Veo Fast 10 积分/镜半价优惠，同等预算产出是纯 API 现付的 5 倍以上）。
+适合：**充分利用 Google AI Ultra 账号自带的 10,000 Flow 月度积分**（0 额外 API 费用）。
 
-1. 当未配置 `GEMINI_API_KEY` 时，运行 `generate_videos.py --provider google_flow` 会自动生成：
-   - `work/google_flow_queue.json`（机器可读批量队列）
-   - `work/google_flow_prompts.md`（带参考图路径与档位建议的清单）
-2. 执行方式：
-   - 在已登录老板 Google AI Ultra 账号的浏览器（或 Antigravity `browser` 子智能体）中打开 `https://flow.google.com`，上传对应 `assets/subjects/*.png` 主体图并生成每个镜头；
-   - 将下载好的镜头保存为 `projects/<slug>/work/generated_videos/scene_01.mp4`、`scene_02.mp4`...
-   - 运行 `build_video.py --script projects/<slug>/script.json`，系统自动识别已下载镜头并完成配音、章节角标、圆角字幕和成片合成。
+- **2026-11 实测可用模型与退场提醒**：
+  - **首选 `Omni 1.2 Flash`**：支持 `3–15 秒` 单次直出长镜头（`720p · 8s` 约 24 积分，`720p · 15s` 约 60 积分；`1080p` 高清重塑 `<=10s` 免费，`11–15s` 仅 +5 积分）。
+  - **低成本备选 `Veo 3.1 - Lite`**：适合纯基础动态镜头的省积分方案。
+  - **旧模型停用**：`Veo 3.1 - Fast`、`Veo 3.1 - Quality`、`Omni 1.1 Flash` 将于 **2026 年 12 月 5 日停用**，新项目请勿再设为默认。
+- **Flow 网页端实测避坑**：
+  - 严禁上传真人视频在 Flow 网页端走 V2V 换人（强触发 `p=speech_edit` / `音频生成失败`）；复刻参考视频请走本地 `prep_v2v_segments.py` 抽分镜接触表 + Flow 纯角色参考图 `15 秒` 长镜头 + `build_video.py` `replace_audio: true` 原音轨直贴。
+  - Flow 每次提交后时长会自动重置回 `8 秒`，每次提交 `15 秒` 前必须逐镜确认。
+- **执行方式**：
+  1. 在已登录 Google AI Ultra 账号的浏览器（Antigravity `browser` 子智能体）中直接打开 `https://flow.google.com/`，在站内用 `Nano Banana 2.1`（`x1`）生成锁定角色参考图；
+  2. 将下载好的 1080p/4K 镜头按顺序归档为 `projects/<slug>/work/generated_videos/scene_01.mp4`（或 `seg_01.mp4`）...
+  3. 运行 `build_video.py --script projects/<slug>/script.json --resolution 1080p`，自动完成原音轨直贴（或可选配音/字幕）与 1080p/4K 成片合成。
 
 ---
 

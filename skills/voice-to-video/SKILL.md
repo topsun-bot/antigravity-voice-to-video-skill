@@ -11,13 +11,13 @@ description: >-
   pure cinema visuals and native AI audio).
 ---
 
-# Voice-to-Video Full-Auto Cinema Skill (v3.0)
+# Voice-to-Video Full-Auto Cinema Skill (v3.2)
 
-本 Skill 让 **Google Antigravity** 具备从「**语音/文字想法或 PPT/PDF 演示文稿 → 分镜脚本 → Google Flow 深度制片（Characters / 素材 / Extend / 尾帧接续）→ 纯净 1080p/4K 电影成片（按需可选配音/字幕）→ 视觉自检**」的全流程视频制作能力。
+本 Skill 让 **Google Antigravity** 具备从「**语音/文字想法、本地参考视频/MV 或 PPT/PDF 演示文稿 → 分镜脚本 → Google Flow 深度制片（`Omni 1.2 Flash` 15 秒长镜头 / Characters / 背景光影覆盖 / Extend / 尾帧接续）→ 纯净 1080p/4K 电影成片（支持 `replace_audio` 原音轨直贴、按需可选配音/字幕）→ 视觉自检**」的全流程视频制作能力。
 
 > **两条铁律**：
 > 1. **严禁用静态图推拉冒充动态成片**（除非用户明确只要静态预览）。
-> 2. **默认输出纯净动态视频**：中文字幕、AI 中文配音、左上角磨砂章节角标、文字片尾卡**默认全部关闭**，保留 Veo 3.1 / Omni 1.2 Flash 原生现场声音与音乐；仅在用户明确要求（例如 PPT 演讲解说、知识科普）时才按需启用。
+> 2. **默认输出纯净动态视频**：中文字幕、AI 中文配音、左上角磨砂章节角标、文字片尾卡**默认全部关闭**，保留 **Omni 1.2 Flash** / Veo 原生现场声音（或在复刻参考视频/MV 时直贴完整原音轨 `bgm.replace_audio: true`）；仅在用户明确要求（例如 PPT 演讲解说、知识科普）时才按需启用。
 
 ---
 
@@ -54,6 +54,16 @@ bash "<SKILL_DIR>/scripts/setup.sh"
     --out-dir "<project_dir>/work/deck" \
     --render-slides
   ```
+- **本地参考视频 / 舞蹈 MV 复刻输入（v3.2 新增）**：
+  若用户提供本地 `.mp4` 参考视频要求按其编舞、节奏、机位或原曲翻拍（如真人舞蹈改机器人舞团、风格重塑），**不要上传真人视频进 Flow 网页端**（Flow 网页端会触发 `p=speech_edit` 拦截），改为一条命令在本地自动抽全片原音轨 + 切段 + 生成分镜接触表：
+  ```bash
+  "$PY" "<SKILL_DIR>/scripts/prep_v2v_segments.py" \
+    --input "<path/to/reference.mp4>" \
+    --project-dir "<project_dir>" \
+    --chunk-seconds 15 \
+    --resolution 1080p
+  ```
+  随后用 `read_file` 逐张审阅生成的 `<project_dir>/work/storyboard_ref/sheet_*.jpg`，精准记录每 15 秒的真实场景光影、人数队形变化与机位运动，写入 `<project_dir>/script.json`（已自动配好 `bgm.replace_audio: true` 与 `input/master_audio.m4a`）。
 - **录音/口播输入**：先运行 `transcribe_audio.py` 提取逐字稿与时间戳。
 
 ---
@@ -82,16 +92,17 @@ bash "<SKILL_DIR>/scripts/setup.sh"
 2. **切至手动模式**：新建项目后关闭 `Flow Agent` 开关（Manual Mode），避免 Flow 擅自改写提示词。
 3. **主体一致建档**：
    - 优先使用 Flow 专用 **Characters**（`/project/<id>/character`）建档锁定主角；辅助道具/环境用站内 **`图片`（Nano Banana 2.1，x1）** 生成入库（零本地文件上传）。
-4. **读取实时积分 & 模式分支**：
-   - 配好 **`视频 → 素材 (Ingredients)`** 或 **`视频 → 帧 (Frames)`**（`Veo 3.1 - Fast` 或 `Omni 1.2 Flash`，`16:9`，`x1`），读取页面实时 **`Generating will use <N> credits`** 提示；
-   - **`checkpoint` 模式（默认）**：汇报真实扣分等用户确认后再开跑；
-   - **`auto` 模式**：用户指令含“全自动 / auto mode / 直接做”时自动连续执行。
+4. **首选模型、实时积分读取 & 防呆校验**：
+   - 配好 **`视频 → 素材 (Ingredients)`** 或 **`视频 → 帧 (Frames)`**，默认首选 **`Omni 1.2 Flash`**（`16:9`，`720p`，`x1`，支持 **`3–15 秒`** 单次长镜头；注：`Veo 3.1 Fast / Quality` 与 `Omni 1.1 Flash` 将于 2026-12-05 停用，低成本备选为 `Veo 3.1 - Lite`）；
+   - **时长重置防呆**：Flow 每次提交后会把时长自动重置回 `8 秒`，提交非 8 秒片段（如 `15 秒` / `9 秒`）前必须逐镜二次确认时长；
+   - **背景与光影强制覆盖**：单张参考图跨多场景使用时，提示词必须显式声明 `"matching ONLY the character design from the reference image; completely ignore the reference image's background and flood the scene with [目标光影/场景/机位]"`；
+   - 读取页面实时 **`Generating will use <N> credits`**（或中文扣分提示）：`checkpoint` 模式（默认）向用户汇报真实扣分确认后再开跑；`auto` 模式连续执行（大项目建议每 5 镜分批生成并抽帧质检）。
 5. **连续性优先**：
-   - 需要连续长动作（如舞蹈、跟随行走）时，善用 Flow Clip Editor 的 **`Extend`（延长）** 或 **`Save frame`（抽尾帧接下一镜起始帧）**，减少碎片化硬切！
+   - 优先利用 `Omni 1.2 Flash` 的 **15 秒单次长镜头**，并在需要更长连续动作时结合 **`Extend`（延长，最高 30s）** 或 **`Save frame`（抽尾帧接下一镜起始帧）**，减少碎片化硬切！
 6. **按选定清晰度下载归档**：
-   - 选 `1080p`（默认）：下载 Flow 免费 **`1080p` 超分版 MP4（+0 积分）**；
-   - 选 `4k`：下载 Flow **`4K` 超分版 MP4（+50 积分/镜）**；
-   - 归档为 `<project_dir>/work/generated_videos/scene_01.mp4`、`scene_02.mp4`...
+   - 选 `1080p`（默认）：下载 **`1080p 已高清重塑`**（1–10s 免费 +0 积分，11–15s 仅 +5 积分/镜）；
+   - 选 `4k`：下载 **`4K` 超分版 MP4（+50 积分/镜）**；
+   - 逐个下载并精确记录映射，归档为 `<project_dir>/work/generated_videos/scene_01.mp4`（或 `seg_01.mp4`）...
 
 ### 路径 B（已配 API Key）：纯 API 后台并发
 
@@ -105,7 +116,7 @@ bash "<SKILL_DIR>/scripts/setup.sh"
 
 ## Phase 4: 通用非线性时间线合片（1080p / 4K）与视觉自检
 
-1. `build_video.py` 支持**多片段自由截取与素材复用**（同一段 Flow 素材可通过 `visual.start` + `duration` / `visual.end` 被多个镜头交叉剪辑）、可选播放倍速（`visual.speed`）、每镜独立转场（`transition`: `cut` / `dissolve` / `fadeblack` / `smoothleft` + `transition_duration`）与**无断层音频交叉淡化（`acrossfade` / 防爆音微淡入淡出）**。执行合片：
+1. `build_video.py` 支持**多片段自由截取与素材复用**（同一段 Flow 素材可通过 `visual.start` + `duration` / `visual.end` 被多个镜头交叉剪辑）、可选播放倍速（`visual.speed`）、每镜独立转场（`transition`: `cut` / `dissolve` / `fadeblack` / `smoothleft` + `transition_duration`）、**完整原音轨无损直贴（`bgm.replace_audio: true`）**与**无断层音频交叉淡化（`acrossfade` / 防爆音微淡入淡出）**。执行合片：
    ```bash
    "$PY" "<SKILL_DIR>/scripts/build_video.py" \
      --script "<project_dir>/script.json" \

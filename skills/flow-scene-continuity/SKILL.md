@@ -45,8 +45,27 @@ description: >-
 
 ---
 
-## 4. 下载与交付规范
+## 4. 实测避坑规范（2026-11 实时验证，务必遵守）
 
-- **读取实时积分**：执行 `Extend`、Inline Edit 或 `4K` 超分前，先核对页面显示的 `Generating will use <N> credits`（Checkpoint 模式下先向用户确认）。
-- **默认画质**：下载 **`1080p` 超分版（Ultra 1～10 秒免费，+0 积分）**；仅在用户明确选择 `4k` 时点击 **`4K` 超分（+50 积分/镜）**。
-- 下载完成后，既可直接用 Flow 的 `Scenes` 导出完整视频，也可交回 `voice-to-video` 的 `build_video.py` 做本地 1080p/4K 精剪（按需加 BGM、可选字幕或 Contact Sheet 质检）。
+### 4.1 模型生命周期与首选配置
+- **首选 `Omni 1.2 Flash`**：单次直出最长 **`15 秒`**（`3–15s` 可选），`720p` 15 秒消耗约 `60 点数`，支持挂载角色参考图（`视频 → 素材`）。
+- **旧模型停用提醒**：Flow 后台已标注 `Veo 3.1 - Fast`、`Veo 3.1 - Quality`、`Omni 1.1 Flash` **将于 2026 年 12 月 5 日停用**；低成本备选请改用 **`Veo 3.1 - Lite`**。
+- **时长自动重置防呆**：Flow 每次提交生成后，**时长滑块会自动跳回 `8 秒`**！批量提交 `15 秒`（或 `9 秒` 收尾镜）时，必须在每次提交前显式检查并重新选中目标时长。
+
+### 4.2 背景与光影强制覆盖法（防“每镜背景雷同”）
+- 当整片只挂载 1 张锁定角色参考图（如在灰水泥舞室生成的机器人参考图）但需要跨多场景切换灯光与机位时，直接在提示词开头写死覆盖指令：
+  > `matching ONLY the character design from the reference image; completely ignore the reference image's grey background and flood the scene with [目标光影/场景/特殊机位，如 blazing warm golden spotlights / straight-down God's-eye overhead circular white spotlight / neon-violet locker corridor]...`
+- 实测可同时实现 **100% 角色外观锁定 + 多场景高反差电影感切换**。
+
+### 4.3 上传真人视频 V2V 策略红线（`p=speech_edit`）
+- **不要把真人舞蹈/MV `.mp4` 上传进 Flow 网页端做 V2V 换人**：Flow 网页端会对上传真人视频触发 **`p=speech_edit`（禁止编辑或生成已上传视频中人物的语音）**；即使提前用 `ffmpeg -an` 剥离全部音轨，也会因网页端缺少 `Omni 1.2 Flash` 无声开关而报 `音频生成失败`。
+- **正确解法**：在本地用 `prep_v2v_segments.py` 自动抽出完整原音轨（`master_audio.m4a`）和全片分镜接触表（`work/storyboard_ref/sheet_*.jpg`），逐段视觉拆解灯光/人数/队形/机位，然后在 Flow 中**仅挂角色参考图**生成 15 秒高动态分镜，最后在 `build_video.py` 中用 `bgm.replace_audio: true` 直贴完整原音轨！
+
+---
+
+## 5. 下载与交付规范
+
+- **读取实时积分**：执行生成、`Extend`、Inline Edit 或 `4K` 超分前，先核对页面显示的 `生成将消耗 <N> 个点数`（Checkpoint 模式下先向用户确认）。
+- **默认画质**：下载 **`1080p 已高清重塑`**（1–10 秒免费 +0 积分，11–15 秒仅 +5 积分/镜）；仅在用户明确选择 `4k` 时点击 **`4K` 超分（+50 积分/镜）**。
+- **批量防错位**：连续下载多段时必须逐个下载并记录每个 UUID 文件名对应的分镜号（如 `seg_01` → `xxx_1080p.mp4`），严禁混序。
+- 下载完成后，既可直接用 Flow 的 `Scenes` 导出完整视频，也可交回 `voice-to-video` 的 `build_video.py` 做本地 1080p/4K 精剪（支持 `replace_audio: true` 直贴原音轨、可选字幕与 Contact Sheet 质检）。

@@ -1,23 +1,33 @@
-# Antigravity Voice-to-Video & Google Flow Operating Rules (v3.0)
+# Antigravity Voice-to-Video & Google Flow Operating Rules (v3.2)
 
 本规则在启用 `antigravity-voice-to-video-skill` 插件（或进入工作区）时始终生效。
 
 ## 1. 纯净成片默认原则与反模板化铁律（极重要）
 
 - **默认输出纯净动态电影画面，绝不强行套模板包装**：
-  - **AI 中文配音（`tts.enabled`）**：默认 **关闭 (`false`)**；默认保留 Veo 3.1 / Omni 1.2 Flash 原生生成的现场音效、音乐或对白（`keep_audio: true`）。仅在用户明确需要解说旁白（如 PPT 演讲汇报、知识科普、旁白故事）时才启用 `edge-tts` 或原声克隆。
+  - **AI 中文配音（`tts.enabled`）**：默认 **关闭 (`false`)**；默认保留 **Omni 1.2 Flash** / Veo 原生生成的现场音效、音乐或对白（`keep_audio: true`），或在复刻参考视频/MV 时使用 `bgm.replace_audio: true` 直贴完整原音轨。仅在用户明确需要解说旁白（如 PPT 演讲汇报、知识科普、旁白故事）时才启用 `edge-tts` 或原声克隆。
   - **中文字幕条（`subtitles.enabled`）**：默认 **关闭 (`false`)**；仅在用户明确需要字幕或开启解说旁白时启用。
   - **左上角磨砂章节角标（`chapter`）**：默认 **关闭 (`""`)**；仅在多章节汇报/PPT 解说且用户希望分段提示时启用。
   - **深色文字片尾卡（`outro_card`）**：默认 **按需可选**，不要给纯创意片、舞蹈片强行拼接黑底大字片尾。
 - **开拍前「10 秒导演定调卡」+ 清晰度二选一（已取消 2K 导出）**：
-  - 若用户只给了宽泛主题（无明确脚本或 PPT），开始生成前必须用一次 `ask_question` 同时确认：
+  - 若用户只给了宽泛主题（无明确脚本、参考视频或 PPT），开始生成前必须用一次 `ask_question` 同时确认：
     1. **视觉方向 3 选 1**（给出 3 个反差极大的真实导演方向，杜绝 Agent 盲猜套用旧模板）；
-    2. **导出清晰度二选一**：**`1080p`（推荐，默认，Google Flow 免费超分 +0 积分）** / **`4k`（3840×2160，Flow Ultra 专属 4K 超分 +50 积分/镜）**。
-  - 若用户已提供明确脚本或 PPT，则跳过方向题，仅在未指定画质时确认 `1080p` / `4k`。
-- **反 AI 塑料味约束**：未要求赛博风时禁用青紫霓虹雾、虚空黑地板、发光胸环；严禁连续 3 镜使用相同运镜（如全是 `slow dolly-in`）；善用非线性的短片段复用、Flow `Extend` 与平滑转场（`dissolve` / `acrossfade`）打破“每 8 秒硬切一页”的幻灯片感。
+    2. **导出清晰度二选一**：**`1080p`（推荐，默认，1–10s 免费超分 / 11–15s 仅 +5 积分）** / **`4k`（3840×2160，Flow Ultra 专属 4K 超分 +50 积分/镜）**。
+  - 若用户已提供明确脚本、本地参考视频或 PPT，则跳过方向题，仅在未指定画质时确认 `1080p` / `4k`。
+- **反 AI 塑料味与参考图背景覆盖约束**：
+  - 未要求赛博风时禁用青紫霓虹雾、虚空黑地板、发光胸环；严禁连续 3 镜使用相同运镜（如全是 `slow dolly-in`）。
+  - 跨多场景复用同一张锁定角色参考图时，必须在提示词中显式声明 **主体锁定 + 背景/光影覆盖**（如 `"matching ONLY the character design from the reference image; completely ignore the reference image's grey background and flood the scene with [target color/location/camera]"`），防止每镜克隆同一灰底背景。
+  - 善用非线性短片段复用、**Omni 1.2 Flash 15 秒长镜头**、Flow `Extend` 与平滑转场（`dissolve` / `acrossfade`）打破“每 8 秒硬切一页”的幻灯片感。
 
-## 2. Google Flow 浏览器操控与登录快检（Fast-Path）
+## 2. Google Flow 浏览器操控、模型生命周期与实测避坑红线
 
+- **首选模型（已适配 2026-12-05 旧模型下线）**：
+  - Google Flow 上的 `Veo 3.1 - Fast`、`Veo 3.1 - Quality`、`Omni 1.1 Flash` 将于 **2026 年 12 月 5 日停用**。
+  - 新项目默认优先选用 **`Omni 1.2 Flash`**（支持 `3–15 秒` 单次长镜头，`720p` 15 秒 60 点数，1080p 重塑仅 +5 点数；`<=10 秒` 1080p 重塑免费）或低成本备选 **`Veo 3.1 - Lite`**。
+- **时长自动重置防呆（必查）**：Flow 网页端每次提交生成后，**时长滑块会自动重置回 `8 秒`**。浏览器子智能体每次提交 `15 秒`（或 `9 秒` 等非 8 秒片段）前，**必须逐镜核对并重设目标时长**，严禁漏设！
+- **禁止上传真人视频走 Flow 网页端 V2V 换人（实测硬边界）**：
+  - Google Flow 网页端对上传的真人视频强执行 **`p=speech_edit`** 政策拦截（即便提前用 `ffmpeg -an` 剥离音轨，网页端也会因缺乏“生成无声视频”开关而报 `音频生成失败` 或 `p=speech_edit`）。
+  - 遇到参考视频/舞蹈 MV 改编需求时，**不要浪费时间上传真人 `.mp4` 进 Flow**：直接本地运行 `prep_v2v_segments.py` 拆解全片分镜接触表 + 提取 `master_audio.m4a` 原音轨 → 在 Flow 内**仅挂载角色参考图**用 `Omni 1.2 Flash` 生成 15 秒高动态分镜长镜头 → `build_video.py` 用 `bgm.replace_audio: true` 直贴完整原音轨！
 - **入口 URL 与会话复用**：始终直接打开 **`https://flow.google.com/`**（避免走旧跳转链导致多余 SSO 登录拦截），通过 Antigravity 内置 `browser` 子智能体（`Model: "flash"`）操作，并用 `send_message` 复用同一已登录标签页，不要在步骤之间销毁空闲子智能体。
 - **语义化定位**：向浏览器子智能体下达语义目标（可见按钮文字、视觉状态），避免硬编码脆弱 CSS 选择器。
 - **登录态快检（Fast-Path Auth Check）**：

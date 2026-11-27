@@ -324,14 +324,22 @@ def burn_ass_subtitles(
     bgm_file: Path | None,
     bgm_vol: float,
     verbose: bool,
+    replace_audio: bool = False,
 ) -> None:
     cmd = ["ffmpeg", "-y", "-i", str(input_mp4)]
     has_bgm = bool(bgm_file and bgm_file.exists())
     if has_bgm:
-        cmd.extend(["-stream_loop", "-1", "-i", str(bgm_file)])
+        if replace_audio:
+            cmd.extend(["-i", str(bgm_file)])
+        else:
+            cmd.extend(["-stream_loop", "-1", "-i", str(bgm_file)])
 
     v_filter = f"ass='{escape_filter_path(ass_path)}'" if ass_path else None
-    if has_bgm:
+    if has_bgm and replace_audio:
+        if v_filter:
+            cmd.extend(["-vf", v_filter])
+        cmd.extend(["-map", "0:v:0", "-map", "1:a:0", "-shortest"])
+    elif has_bgm:
         a_filter = (
             f"[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[vo];"
             f"[1:a]volume={bgm_vol:.3f}[bgm];"
@@ -994,6 +1002,7 @@ def build_from_script(script_path: Path, resolution_override: str | None = None,
             bgm_file=bgm_file,
             bgm_vol=bgm_vol,
             verbose=verbose,
+            replace_audio=bool(bgm_cfg.get("replace_audio", False)),
         )
 
     # Extract midpoint preview frames + unified storyboard contact sheet
